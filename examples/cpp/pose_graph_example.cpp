@@ -9,13 +9,13 @@
  *         |    |
  *         x5 - x4
  */
-
+   // 选择需要的.h头文件
 #include <minisam/core/Factor.h>
 #include <minisam/core/FactorGraph.h>
 #include <minisam/core/LossFunction.h>
 #include <minisam/core/Variables.h>
 #include <minisam/geometry/Sophus.h>  // include when use Sophus types in optimization
-#include <minisam/nonlinear/LevenbergMarquardtOptimizer.h>
+#include <minisam/nonlinear/LevenbergMarquardtOptimizer.h>  //这里我们使用LM优化方法
 #include <minisam/nonlinear/MarginalCovariance.h>
 #include <minisam/slam/BetweenFactor.h>
 #include <minisam/slam/PriorFactor.h>
@@ -28,25 +28,24 @@ using namespace minisam;
 /* ******************************* example ********************************** */
 
 int main() {
-  // factor graph container
+  //  定义FactorGraph类的对象 因子图容器
   FactorGraph graph;
 
-  // Add a prior on the first pose, setting it to the origin
-  // The prior is needed to fix/align the whole trajectory at world frame
-  // A prior factor consists of a mean value and a loss function (covariance
-  // matrix)
-  const std::shared_ptr<LossFunction> priorLoss =
-      DiagonalLoss::Sigmas(Eigen::Vector3d(1.0, 1.0, 0.1));
-  graph.add(PriorFactor<Sophus::SE2d>(
-      key('x', 1), Sophus::SE2d(0, Eigen::Vector2d(0, 0)), priorLoss));
+  // 在第一位置上加入一个先验，并将其设置为原点
+  // 先验需要在世界坐标系下去修改/校正运行轨迹
+  // 先验因子包括一个均值和损失函数(协方差矩阵)
 
-  // odometry measurement loss function
+  const std::shared_ptr<LossFunction> priorLoss =
+      DiagonalLoss::Sigmas(Eigen::Vector3d(1.0, 1.0, 0.1));   //先验因子的损失函数
+  graph.add(PriorFactor<Sophus::SE2d>(
+      key('x', 1), Sophus::SE2d(0, Eigen::Vector2d(0, 0)), priorLoss));   //添加先验因子
+
+  // 里程计测量的误差函数
   const std::shared_ptr<LossFunction> odomLoss =
       DiagonalLoss::Sigmas(Eigen::Vector3d(0.5, 0.5, 0.1));
 
-  // Add odometry factors
-  // Create odometry (Between) factors between consecutive poses
-  // robot makes 90 deg right turns at x3 - x5
+  // 在连续位姿之间添加Between Factor
+  // 每次前进5个单位,运动到x3-x5时会有向右90°的转动
   graph.add(BetweenFactor<Sophus::SE2d>(
       key('x', 1), key('x', 2), Sophus::SE2d(0.0, Eigen::Vector2d(5, 0)),
       odomLoss));
@@ -60,11 +59,11 @@ int main() {
       key('x', 4), key('x', 5), Sophus::SE2d(-1.57, Eigen::Vector2d(5, 0)),
       odomLoss));
 
-  // loop closure measurement loss function
+  // 闭环检测的误差函数
   const std::shared_ptr<LossFunction> loopLoss =
       DiagonalLoss::Sigmas(Eigen::Vector3d(0.5, 0.5, 0.1));
 
-  // Add the loop closure constraint
+  // 加入闭环约束
   graph.add(BetweenFactor<Sophus::SE2d>(
       key('x', 5), key('x', 2), Sophus::SE2d(-1.57, Eigen::Vector2d(5, 0)),
       loopLoss));
@@ -72,8 +71,8 @@ int main() {
   graph.print();
   cout << endl;
 
-  // initial varible values for the optimization
-  // add random noise from ground truth values
+  // 加入变量初始值
+  // 加入随机噪声(自定义？)  from ground truth values
   Variables initials;
 
   initials.add(key('x', 1), Sophus::SE2d(0.2, Eigen::Vector2d(0.2, -0.3)));
@@ -88,7 +87,7 @@ int main() {
   initials.print();
   cout << endl;
 
-  // Use LM method optimizes the initial values
+  // 调用 LM 方法对初值进行优化
   LevenbergMarquardtOptimizerParams opt_param;
   opt_param.verbosity_level = NonlinearOptimizerVerbosityLevel::ITERATION;
   LevenbergMarquardtOptimizer opt(opt_param);
@@ -103,7 +102,7 @@ int main() {
   results.print();
   cout << endl;
 
-  // Calculate marginal covariances for all poses
+  // 计算所有位姿的边际协方差(误差)
   MarginalCovarianceSolver mcov_solver;
 
   auto cstatus = mcov_solver.initialize(graph, results);
