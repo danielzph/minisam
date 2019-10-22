@@ -23,12 +23,13 @@
 
 #include <iostream>
 
+
 using namespace std;
 using namespace minisam;
 
 /* ******************************** factor ********************************** */
 
-// GPS position factor
+// 定义gps因子类
 class GPSPositionFactor : public Factor {
  private:
   Eigen::Vector2d p_;
@@ -46,13 +47,13 @@ class GPSPositionFactor : public Factor {
     return std::shared_ptr<Factor>(new GPSPositionFactor(*this));
   }
 
-  // error = y - exp(m * x + c);
+  // 误差 = y - exp(m * x + c);
   Eigen::VectorXd error(const Variables& variables) const override {
     const Sophus::SE2d& pose = variables.at<Sophus::SE2d>(keys()[0]);
     return pose.translation() - p_;
   }
 
-  // jacobians
+  // 雅克比矩阵
   std::vector<Eigen::MatrixXd> jacobians(
       const Variables& /*values*/) const override {
     Eigen::MatrixXd J(2, 3);
@@ -63,7 +64,7 @@ class GPSPositionFactor : public Factor {
     return std::vector<Eigen::MatrixXd>{J};
   }
 
-  // optional print function
+  // （可选择） 打印函数
   void print(std::ostream& out = std::cout) const override {
     out << "GPS Factor on SE(2) on " << keyString(keys()[0]) << std::endl;
   }
@@ -72,14 +73,14 @@ class GPSPositionFactor : public Factor {
 /* ******************************* example ********************************** */
 
 int main() {
-  // factor graph container
+  // 因子图容器
   FactorGraph graph;
 
-  // odometry measurement loss function
+  // 里程计测量的误差函数
   const std::shared_ptr<LossFunction> odomLoss = ScaleLoss::Scale(1.0);
 
-  // Add odometry factors
-  // Create odometry (Between) factors between consecutive poses
+  // 加入里程计因子
+  // 在连续位姿之间加入里程计因子
   graph.add(BetweenFactor<Sophus::SE2d>(
       key('x', 1), key('x', 2), Sophus::SE2d(0.0, Eigen::Vector2d(5, 0)),
       odomLoss));
@@ -87,11 +88,11 @@ int main() {
       key('x', 2), key('x', 3), Sophus::SE2d(0.0, Eigen::Vector2d(5, 0)),
       odomLoss));
 
-  // 2D 'GPS' measurement loss function, 2-dim
+  // gps测量因子误差函数, 二维
   const std::shared_ptr<LossFunction> gpsLoss =
       DiagonalLoss::Sigmas(Eigen::Vector2d(2.0, 2.0));
 
-  // Add the GPS factors
+  // 加入gps因子
   // note that there is no prior factor needed at first pose, since GPS provides
   // the global positions (and rotations given more than 1 GPS measurements)
   graph.add(GPSPositionFactor(key('x', 1), Eigen::Vector2d(0, 0), gpsLoss));
@@ -101,7 +102,7 @@ int main() {
   graph.print();
   cout << endl;
 
-  // initial varible values for the optimization
+  // 加入变量初始值和随机噪音
   // add random noise from ground truth values
   Variables initials;
 
@@ -112,7 +113,7 @@ int main() {
   initials.print();
   cout << endl;
 
-  // Use LM method optimizes the initial values
+  // 使用LM优化方法对初始值进行优化
   LevenbergMarquardtOptimizerParams opt_param;
   opt_param.verbosity_level = NonlinearOptimizerVerbosityLevel::ITERATION;
   LevenbergMarquardtOptimizer opt(opt_param);
@@ -127,7 +128,7 @@ int main() {
   results.print();
   cout << endl;
 
-  // Calculate marginal covariances for all poses
+  // 计算所有位姿的边际协方差
   MarginalCovarianceSolver mcov_solver;
 
   auto cstatus = mcov_solver.initialize(graph, results);
